@@ -1,0 +1,10 @@
+version: "2"
+sql:
+  - engine: "postgresql"
+    queries: "pkg/db/query.sql"
+    schema: "pkg/db/schema.sql"
+    gen:
+      go:
+        package: "rewards"
+        out: "pkg/rewards"
+        emit_json_tags: true

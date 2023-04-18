@@ -28,6 +28,10 @@ WHERE id = $1 LIMIT 1;
 UPDATE scratch_cards_rewards SET status = $2
 WHERE id = $1;
 
+-- name: UpdateScratchCardRewardByOrderId :exec
+UPDATE scratch_cards_rewards SET status = $2
+WHERE order_id = $1;
+
 -- name: GetUnlockedScratchCardRewardCount :one
 SELECT COUNT(*) FROM scratch_cards_rewards
 WHERE scratch_card_id = $1 AND status = 'success';

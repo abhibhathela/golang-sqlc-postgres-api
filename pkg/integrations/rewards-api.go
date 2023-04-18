@@ -126,7 +126,7 @@ func UnlockScratchCardV3() (RewardsResponse, error) {
 		return RewardsResponse{}, err
 	}
 
-	req.Header.Add("x-callback-url", "http://localhost:5252/callback")
+	req.Header.Add("x-callback-url", "https://6b6e-123-201-2-130.in.ngrok.io/v1/scratch-card/callback")
 	req.Header.Add("Content-Type", "application/json")
 
 	res, err := client.Do(req)

@@ -17,6 +17,13 @@ type unlockScratchCardRequest struct {
 	UserId int64 `json:"user_id" binding:"required"`
 }
 
+type rewardCallBackRequest struct {
+	ID      int64  `json:"ID"`
+	OrderID string `json:"OrderID"`
+	Status  string `json:"Status"`
+	ScID    string `json:"ScID"`
+}
+
 func main() {
 
 	// connect to the database
@@ -227,8 +234,22 @@ func main() {
 		ctx.JSON(http.StatusOK, rows)
 	})
 
-	router.GET("/v1/scratch-card/callback", func(ctx *gin.Context) {
+	router.PUT("/v1/scratch-card/callback", func(ctx *gin.Context) {
 
+		var rewardsRequest rewardCallBackRequest
+		if err := ctx.BindJSON(&rewardsRequest); err != nil {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		var arg rewards.UpdateScratchCardRewardByOrderIdParams = rewards.UpdateScratchCardRewardByOrderIdParams{
+			Status:  rewards.RewardStatus(rewardsRequest.Status),
+			OrderID: rewardsRequest.OrderID,
+		}
+
+		rewardsRepo.UpdateScratchCardRewardByOrderId(ctx, arg)
+
+		ctx.JSON(http.StatusOK, gin.H{"message": "success"})
 	})
 
 	router.Run("localhost:5252")

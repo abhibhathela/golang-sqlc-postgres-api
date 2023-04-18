@@ -217,3 +217,18 @@ func (q *Queries) UpdateScratchCardReward(ctx context.Context, arg UpdateScratch
 	_, err := q.db.ExecContext(ctx, updateScratchCardReward, arg.ID, arg.Status)
 	return err
 }
+
+const updateScratchCardRewardByOrderId = `-- name: UpdateScratchCardRewardByOrderId :exec
+UPDATE scratch_cards_rewards SET status = $2
+WHERE order_id = $1
+`
+
+type UpdateScratchCardRewardByOrderIdParams struct {
+	OrderID string       `json:"order_id"`
+	Status  RewardStatus `json:"status"`
+}
+
+func (q *Queries) UpdateScratchCardRewardByOrderId(ctx context.Context, arg UpdateScratchCardRewardByOrderIdParams) error {
+	_, err := q.db.ExecContext(ctx, updateScratchCardRewardByOrderId, arg.OrderID, arg.Status)
+	return err
+}

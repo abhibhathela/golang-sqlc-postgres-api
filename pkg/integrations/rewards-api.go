@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/abhishheck/gamezop-task/pkg/rewards"
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
@@ -104,10 +105,6 @@ func UnlockScratchCardV2() (RewardsResponse, error) {
 		fmt.Println("Error decoding JSON response:", err)
 		return RewardsResponse{}, err
 	}
-
-	//! need to create go routine that will check the status of the order every 5 seconds
-	go PoolPaymentStatus()
-
 	return data, nil
 }
 
@@ -150,19 +147,38 @@ func UnlockScratchCardV3() (RewardsResponse, error) {
 	return data, nil
 }
 
-func PoolPaymentStatus() {
+func PoolPaymentStatus(id int64, orderId string, ctx *gin.Context, queries *rewards.Queries) {
 	startTime := time.Now()
 	for time.Since(startTime) < 60*time.Second {
 		// make the API call to get the order status
-		status, err := CheckPayoutStatus()
+		status, err := CheckPayoutStatus(orderId)
 		if err != nil {
 			// handle the error
 			fmt.Println("Error: ", err)
 		} else {
 			// print the order status
 			fmt.Println("Order status: ", status)
-			if status != "pending" {
-				//! update the database with given status and do remaining things
+			if status == "failed" {
+				err := queries.UpdateScratchCardReward(ctx, rewards.UpdateScratchCardRewardParams{
+					ID:     id,
+					Status: rewards.RewardStatus(status),
+				})
+				if err != nil {
+					fmt.Println("Error: ", err)
+				}
+				//! credit on fail
+				Credit(orderId, id)
+				return
+			}
+			if status == "success" {
+				err := queries.UpdateScratchCardReward(ctx, rewards.UpdateScratchCardRewardParams{
+					ID:     id,
+					Status: rewards.RewardStatus(status),
+				})
+				if err != nil {
+					fmt.Println("Error: ", err)
+				}
+				return
 			}
 		}
 		// wait for 5 seconds before making the next API call
@@ -171,9 +187,8 @@ func PoolPaymentStatus() {
 	fmt.Println("Reached max time limit of 60 seconds")
 }
 
-func CheckPayoutStatus() (string, error) {
-	// localhost:3010/r2/payout/status?order-id=92227ca9-23eb-4945-981d-ba7a20a7fc40
-	url := "localhost:3010/r2/payout/status?order-id=92227ca9-23eb-4945-981d-ba7a20a7fc40"
+func CheckPayoutStatus(orderId string) (string, error) {
+	url := "http://localhost:3010/r2/payout/status?order-id=" + orderId
 	method := "GET"
 
 	payload := &bytes.Buffer{}
@@ -206,6 +221,30 @@ func CheckPayoutStatus() (string, error) {
 		fmt.Println("Error decoding JSON response:", err)
 	}
 	return data.Data.Status, nil
+}
+
+func Credit(orderId string, scratchCardId int64) {
+	url := "http://localhost:3010/credit"
+	method := "PUT"
+
+	payload := strings.NewReader(`{
+		"orderId": "` + orderId + `",
+		"scratchCardId": 1
+	}`)
+
+	client := &http.Client{}
+	req, err := http.NewRequest(method, url, payload)
+
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	res, err := client.Do(req)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer res.Body.Close()
 }
 
 func UnlockScratchCard(rewardsType rewards.RewardTypes) (RewardsResponse, error) {

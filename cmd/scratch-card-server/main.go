@@ -5,43 +5,16 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
-	"time"
 
+	"github.com/abhishheck/gamezop-task/pkg/helpers"
 	"github.com/abhishheck/gamezop-task/pkg/integrations"
 	"github.com/abhishheck/gamezop-task/pkg/rewards"
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"
-	"github.com/robfig/cron/v3"
 )
 
 type unlockScratchCardRequest struct {
 	UserId int64 `json:"user_id" binding:"required"`
-}
-
-func isValidDateToUnlockReward(schedule string) (bool, error) {
-	parsedSchedule, err := cron.ParseStandard(schedule)
-	if err != nil {
-		return false, fmt.Errorf("error while parsing the schedule")
-	}
-
-	nextTime := parsedSchedule.Next(time.Now())
-
-	year := nextTime.Year()
-	month := nextTime.Month()
-	day := nextTime.Day()
-
-	cYear := time.Now().Year()
-	cMonth := time.Now().Month()
-	cDay := time.Now().Day()
-
-	// if date month year match then print "today"
-	if year == cYear && month == cMonth && day == cDay {
-		return true, nil
-	}
-
-	fmt.Println("nextTime", nextTime, year == cYear && month == cMonth && day == cDay)
-
-	return false, nil
 }
 
 func main() {
@@ -107,7 +80,7 @@ func main() {
 			}
 
 			if sc.Schedule.Valid {
-				_, err := isValidDateToUnlockReward(sc.Schedule.String)
+				_, err := helpers.IsValidDateToUnlockReward(sc.Schedule.String)
 				if err != nil {
 					fmt.Println("error while validating the schedule", err)
 					break
@@ -207,18 +180,18 @@ func main() {
 
 		fmt.Println(rewards.RewardStatus(response.Data.Status))
 
-		rStatus := rewards.RewardStatus(response.Data.Status)
-		rStatus.Scan(&response.Data.Status)
+		// rStatus := rewards.RewardStatus(response.Data.Status)
+		// rStatus.Scan(&response.Data.Status)
 
 		// insert into the scratch card rewards table
 		var args rewards.CreateScratchCardRewardParams = rewards.CreateScratchCardRewardParams{
 			UserID:        user.ID,
 			ScratchCardID: selectedItem.ID,
-			Status:        rStatus,
+			Status:        rewards.RewardStatus(response.Data.Status),
 			OrderID:       response.Data.OrderId.String(),
 		}
 
-		_, err = qtx.CreateScratchCardReward(ctx, args)
+		newSc, err := qtx.CreateScratchCardReward(ctx, args)
 		if err != nil {
 			fmt.Println("error while creating the scratch card reward", err)
 			ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -230,6 +203,14 @@ func main() {
 		if err != nil {
 			ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
+		}
+
+		if response.Data.Status == "failed" {
+			integrations.Credit(newSc.OrderID, newSc.ID)
+		}
+
+		if selectedItem.RewardType == rewards.RewardTypesR2 {
+			go integrations.PoolPaymentStatus(newSc.ID, response.Data.OrderId.String(), ctx, rewardsRepo)
 		}
 
 		ctx.JSON(http.StatusOK, gin.H{"message": "scratch card unlocked"})
@@ -244,6 +225,10 @@ func main() {
 		}
 
 		ctx.JSON(http.StatusOK, rows)
+	})
+
+	router.GET("/v1/scratch-card/callback", func(ctx *gin.Context) {
+
 	})
 
 	router.Run("localhost:5252")

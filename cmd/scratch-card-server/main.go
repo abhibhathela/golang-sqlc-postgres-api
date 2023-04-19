@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
@@ -38,7 +39,7 @@ func runMigrate(db *sql.DB) {
 	}
 
 	m, err := migrate.NewWithDatabaseInstance(
-		"file://migrations",
+		"file:///Users/Abhishek/Developer/Go/gamezop-task/migrations",
 		"postgres", driver)
 
 	if err != nil {
@@ -53,37 +54,16 @@ func runMigrate(db *sql.DB) {
 	}
 }
 
-func main() {
-
-	err := godotenv.Load(".env")
-
-	if err != nil {
-		panic(err)
-	}
-
-	// connect to the database
-	connStr := os.Getenv("POSTGRES_URL")
-	db, err := sql.Open("postgres", connStr)
-	if err != nil {
-		panic(err)
-	}
-
-	// check the connection
-	if err := db.Ping(); err != nil {
-		panic(err)
-	}
-
-	router := gin.Default()
-
-	rewardsRepo := rewards.New(db)
-
-	router.GET("/", func(ctx *gin.Context) {
+func HandleRootRouter() gin.HandlerFunc {
+	return func(ctx *gin.Context) {
 		ctx.JSON(http.StatusOK, gin.H{"message": "hello gin, grant my wish"})
-	})
+	}
+}
 
-	router.POST("/v1/scratch-card/unlock", func(ctx *gin.Context) {
-		// take user_id from the json body
+var scUnlock = integrations.UnlockScratchCard
 
+func HandleScratchCardUnlock(db *sql.DB, repository *rewards.Queries) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
 		var unlockScratchCardRequest unlockScratchCardRequest
 		if err := ctx.BindJSON(&unlockScratchCardRequest); err != nil {
 			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -92,7 +72,7 @@ func main() {
 		userId := unlockScratchCardRequest.UserId
 
 		// validate user has scratch cards to unlock
-		user, err := rewardsRepo.GetUser(ctx, userId)
+		user, err := repository.GetUser(ctx, userId)
 
 		if err != nil {
 			ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -104,7 +84,7 @@ func main() {
 			return
 		}
 
-		rewardsRows, err := rewardsRepo.GetScratchCards(ctx)
+		rewardsRows, err := repository.GetScratchCards(ctx)
 
 		fmt.Printf("rewardsRows: %v", rewardsRows)
 
@@ -122,6 +102,7 @@ func main() {
 			}
 
 			if sc.Schedule.Valid {
+				//! this validation can be cached in redis on daily basis to avoid iterating over the same schedule
 				_, err := helpers.IsValidDateToUnlockReward(sc.Schedule.String)
 				if err != nil {
 					fmt.Println("error while validating the schedule", err)
@@ -131,7 +112,7 @@ func main() {
 
 			if sc.MaxCards.Valid {
 				//! find how many are unlocked
-				redeemedCardsCount, err := rewardsRepo.GetUnlockedScratchCardRewardCount(ctx, sc.ID)
+				redeemedCardsCount, err := repository.GetUnlockedScratchCardRewardCount(ctx, sc.ID)
 				if err != nil {
 					fmt.Println("error while getting the unlocked scratch card count", err)
 					break
@@ -148,7 +129,7 @@ func main() {
 					ScratchCardID: sc.ID,
 				}
 
-				redeemedCardsCount, err := rewardsRepo.GetUnlockedScratchCardRewardCountByUser(ctx, args)
+				redeemedCardsCount, err := repository.GetUnlockedScratchCardRewardCountByUser(ctx, args)
 				if err != nil {
 					break
 				}
@@ -194,7 +175,7 @@ func main() {
 
 		fmt.Printf("Selected %s\n", selectedItem.RewardType)
 
-		response, err := integrations.UnlockScratchCard(selectedItem.RewardType)
+		response, err := scUnlock(selectedItem.RewardType)
 
 		if err != nil {
 			ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -212,7 +193,7 @@ func main() {
 
 		defer tx.Rollback()
 
-		qtx := rewardsRepo.WithTx(tx)
+		qtx := repository.WithTx(tx)
 
 		err = qtx.DeductScratchCard(ctx, user.ID)
 		if err != nil {
@@ -248,25 +229,28 @@ func main() {
 		}
 
 		if selectedItem.RewardType == rewards.RewardTypesR2 {
-			go integrations.PoolPaymentStatus(newSc.ID, response.Data.OrderId.String(), ctx, rewardsRepo)
+			go integrations.PollPaymentStatus(newSc.ID, response.Data.OrderId.String(), ctx, repository)
 		}
 
 		ctx.JSON(http.StatusOK, gin.H{"message": "scratch card unlocked"})
-	})
+	}
+}
 
-	router.POST("/v1/scratch-card/list", func(ctx *gin.Context) {
-		rows, err := rewardsRepo.GetScratchCardRewards(ctx)
-
+func HandleScratchCardList(db *sql.DB, repository *rewards.Queries) gin.HandlerFunc {
+	//! this can be cached in redis
+	//! when a new scratch card is added, the cache can be invalidated
+	return func(ctx *gin.Context) {
+		rows, err := repository.GetScratchCardRewards(ctx)
 		if err != nil {
 			ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
-
 		ctx.JSON(http.StatusOK, rows)
-	})
+	}
+}
 
-	router.PUT("/v1/scratch-card/callback", func(ctx *gin.Context) {
-
+func HandleScratchCardCallback(db *sql.DB, repository *rewards.Queries) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
 		var rewardsRequest rewardCallBackRequest
 		if err := ctx.BindJSON(&rewardsRequest); err != nil {
 			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -278,10 +262,42 @@ func main() {
 			OrderID: rewardsRequest.OrderID,
 		}
 
-		rewardsRepo.UpdateScratchCardRewardByOrderId(ctx, arg)
+		repository.UpdateScratchCardRewardByOrderId(ctx, arg)
 
 		ctx.JSON(http.StatusOK, gin.H{"message": "success"})
-	})
+	}
+}
 
+func Router(db *sql.DB, repository *rewards.Queries, httpClient *http.Client) *gin.Engine {
+	router := gin.New()
+	router.GET("/", HandleRootRouter())
+	router.POST("/v1/scratch-card/unlock", HandleScratchCardUnlock(db, repository))
+	router.POST("/v1/scratch-card/list", HandleScratchCardList(db, repository))
+	router.PUT("/v1/scratch-card/callback", HandleScratchCardCallback(db, repository))
+	return router
+}
+
+func main() {
+	// load env
+	err := godotenv.Load(".env")
+	if err != nil {
+		panic(err)
+	}
+
+	// connect to the database
+	connStr := os.Getenv("POSTGRES_URL")
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		panic(err)
+	}
+
+	// check the connection
+	if err := db.Ping(); err != nil {
+		panic(err)
+	}
+
+	repository := rewards.New(db)
+
+	router := Router(db, repository, &http.Client{})
 	router.Run("localhost:5252")
 }

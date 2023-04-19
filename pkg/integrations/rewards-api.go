@@ -148,7 +148,7 @@ func UnlockScratchCardV3() (RewardsResponse, error) {
 	return data, nil
 }
 
-func PoolPaymentStatus(id int64, orderId string, ctx *gin.Context, queries *rewards.Queries) {
+func PollPaymentStatus(id int64, orderId string, ctx *gin.Context, queries *rewards.Queries) {
 	startTime := time.Now()
 	for time.Since(startTime) < 60*time.Second {
 		// make the API call to get the order status

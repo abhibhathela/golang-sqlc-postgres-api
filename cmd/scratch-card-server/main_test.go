@@ -96,8 +96,6 @@ func TestUnlockScratchCard(t *testing.T) {
 
 	scUnlock = func(rewardsType rewards.RewardTypes) (integrations.RewardsResponse, error) {
 
-		fmt.Println(">>>>>>>>>>>>>>>>>>>. what the fuck")
-
 		res := integrations.RewardsResponse{
 			Success: true,
 			Version: "v1",

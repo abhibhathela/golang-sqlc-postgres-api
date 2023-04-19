@@ -1,5 +1,5 @@
 PID_FILE := './.pid'
-POSTGRESQL_URL='postgres://postgres:root@localhost:5432/test?sslmode=disable'
+POSTGRESQL_URL='postgres://postgres:root@localhost:5432/rewards?sslmode=disable'
 
 migrate-up:
 	@migrate -database ${POSTGRESQL_URL} -path migrations -verbose up

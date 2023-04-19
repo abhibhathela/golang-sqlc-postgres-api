@@ -2,12 +2,22 @@
 SELECT * FROM users
 WHERE id = $1 LIMIT 1;
 
+-- name: CreateUser :one
+INSERT INTO users (name, scratch_cards)
+VALUES ($1, $2)
+RETURNING *;
+
 -- name: DeductScratchCard :exec
 UPDATE users SET scratch_cards = scratch_cards - 1
 WHERE id = $1;
 
 -- name: GetScratchCards :many
 SELECT * FROM scratch_cards;
+
+-- name: CreateScratchCard :one
+INSERT INTO scratch_cards (schedule, max_cards, max_cards_per_user, weight, reward_type)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING *;
 
 -- name: GetScratchCardRewards :many
 SELECT scr.id, scr.user_id, scr.scratch_card_id, scr.status, sc.reward_type, u.name, u.scratch_cards

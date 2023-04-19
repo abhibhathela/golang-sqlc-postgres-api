@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"mime/multipart"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -34,7 +35,7 @@ type OrderStatusResponse struct {
 }
 
 func UnlockScratchCardV1() (RewardsResponse, error) {
-	url := "http://localhost:3010/r1/payout"
+	url := os.Getenv("REWARDS_ENDPOINT") + "/r1/payout"
 	method := "POST"
 
 	uuid, _ := uuid.NewRandom()
@@ -73,7 +74,7 @@ func UnlockScratchCardV1() (RewardsResponse, error) {
 }
 
 func UnlockScratchCardV2() (RewardsResponse, error) {
-	url := "http://localhost:3010/r2/payout"
+	url := os.Getenv("REWARDS_ENDPOINT") + "/r2/payout"
 	method := "POST"
 
 	uuid, _ := uuid.NewRandom()
@@ -109,7 +110,7 @@ func UnlockScratchCardV2() (RewardsResponse, error) {
 }
 
 func UnlockScratchCardV3() (RewardsResponse, error) {
-	url := "http://localhost:3010/r3/payout"
+	url := os.Getenv("REWARDS_ENDPOINT") + "/r3/payout"
 	method := "POST"
 
 	uuid, _ := uuid.NewRandom()
@@ -188,7 +189,7 @@ func PoolPaymentStatus(id int64, orderId string, ctx *gin.Context, queries *rewa
 }
 
 func CheckPayoutStatus(orderId string) (string, error) {
-	url := "http://localhost:3010/r2/payout/status?order-id=" + orderId
+	url := os.Getenv("REWARDS_ENDPOINT") + "/r2/payout/status?order-id=" + orderId
 	method := "GET"
 
 	payload := &bytes.Buffer{}
@@ -224,7 +225,7 @@ func CheckPayoutStatus(orderId string) (string, error) {
 }
 
 func Credit(orderId string, scratchCardId int64) {
-	url := "http://localhost:3010/credit"
+	url := os.Getenv("REWARDS_ENDPOINT") + "/credit"
 	method := "PUT"
 
 	payload := strings.NewReader(`{

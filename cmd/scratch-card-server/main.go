@@ -2,14 +2,19 @@ package main
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"math/rand"
 	"net/http"
+	"os"
 
 	"github.com/abhishheck/gamezop-task/pkg/helpers"
 	"github.com/abhishheck/gamezop-task/pkg/integrations"
 	"github.com/abhishheck/gamezop-task/pkg/rewards"
 	"github.com/gin-gonic/gin"
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/postgres"
+	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
 
@@ -24,10 +29,40 @@ type rewardCallBackRequest struct {
 	ScID    string `json:"ScID"`
 }
 
+func runMigrate(db *sql.DB) {
+	driver, err := postgres.WithInstance(db, &postgres.Config{})
+
+	if err != nil {
+		fmt.Println("failed to create postgres driver")
+		panic(err)
+	}
+
+	m, err := migrate.NewWithDatabaseInstance(
+		"file://migrations",
+		"postgres", driver)
+
+	if err != nil {
+		fmt.Println("failed to create migrate instance")
+		panic(err)
+	}
+
+	err = m.Up()
+	if err != nil && !errors.Is(err, migrate.ErrNoChange) {
+		fmt.Println("failed to run migrations")
+		panic(err)
+	}
+}
+
 func main() {
 
+	err := godotenv.Load(".env")
+
+	if err != nil {
+		panic(err)
+	}
+
 	// connect to the database
-	connStr := "postgres://postgres:root@localhost/test?sslmode=disable"
+	connStr := os.Getenv("POSTGRES_URL")
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		panic(err)
@@ -187,10 +222,6 @@ func main() {
 
 		fmt.Println(rewards.RewardStatus(response.Data.Status))
 
-		// rStatus := rewards.RewardStatus(response.Data.Status)
-		// rStatus.Scan(&response.Data.Status)
-
-		// insert into the scratch card rewards table
 		var args rewards.CreateScratchCardRewardParams = rewards.CreateScratchCardRewardParams{
 			UserID:        user.ID,
 			ScratchCardID: selectedItem.ID,

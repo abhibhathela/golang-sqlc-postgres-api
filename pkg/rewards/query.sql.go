@@ -7,7 +7,44 @@ package rewards
 
 import (
 	"context"
+	"database/sql"
 )
+
+const createScratchCard = `-- name: CreateScratchCard :one
+INSERT INTO scratch_cards (schedule, max_cards, max_cards_per_user, weight, reward_type)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, schedule, max_cards, max_cards_per_user, weight, reward_type, created_at, updated_at
+`
+
+type CreateScratchCardParams struct {
+	Schedule        sql.NullString `json:"schedule"`
+	MaxCards        sql.NullInt32  `json:"max_cards"`
+	MaxCardsPerUser sql.NullInt32  `json:"max_cards_per_user"`
+	Weight          int32          `json:"weight"`
+	RewardType      RewardTypes    `json:"reward_type"`
+}
+
+func (q *Queries) CreateScratchCard(ctx context.Context, arg CreateScratchCardParams) (ScratchCard, error) {
+	row := q.db.QueryRowContext(ctx, createScratchCard,
+		arg.Schedule,
+		arg.MaxCards,
+		arg.MaxCardsPerUser,
+		arg.Weight,
+		arg.RewardType,
+	)
+	var i ScratchCard
+	err := row.Scan(
+		&i.ID,
+		&i.Schedule,
+		&i.MaxCards,
+		&i.MaxCardsPerUser,
+		&i.Weight,
+		&i.RewardType,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
 
 const createScratchCardReward = `-- name: CreateScratchCardReward :one
 INSERT INTO scratch_cards_rewards (scratch_card_id, user_id, order_id ,status)
@@ -36,6 +73,30 @@ func (q *Queries) CreateScratchCardReward(ctx context.Context, arg CreateScratch
 		&i.UserID,
 		&i.OrderID,
 		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const createUser = `-- name: CreateUser :one
+INSERT INTO users (name, scratch_cards)
+VALUES ($1, $2)
+RETURNING id, name, scratch_cards, created_at, updated_at
+`
+
+type CreateUserParams struct {
+	Name         string `json:"name"`
+	ScratchCards int32  `json:"scratch_cards"`
+}
+
+func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, createUser, arg.Name, arg.ScratchCards)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.ScratchCards,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

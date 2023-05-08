@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/abhishheck/gamezop-task/pkg/integrations"
-	"github.com/abhishheck/gamezop-task/pkg/rewards"
+	"github.com/abhishheck/golang-api/pkg/integrations"
+	"github.com/abhishheck/golang-api/pkg/rewards"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"

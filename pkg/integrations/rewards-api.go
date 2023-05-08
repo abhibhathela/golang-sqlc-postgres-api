@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/abhishheck/gamezop-task/pkg/rewards"
+	"github.com/abhishheck/golang-api/pkg/rewards"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )

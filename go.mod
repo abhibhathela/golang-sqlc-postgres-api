@@ -1,4 +1,4 @@
-module github.com/abhishheck/gamezop-task
+module github.com/abhishheck/golang-api
 
 go 1.20
 

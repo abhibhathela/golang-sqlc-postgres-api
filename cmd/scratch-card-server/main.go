@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/abhishheck/gamezop-task/pkg/helpers"
-	"github.com/abhishheck/gamezop-task/pkg/integrations"
-	"github.com/abhishheck/gamezop-task/pkg/rewards"
+	"github.com/abhishheck/golang-api/pkg/helpers"
+	"github.com/abhishheck/golang-api/pkg/integrations"
+	"github.com/abhishheck/golang-api/pkg/rewards"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
@@ -39,7 +39,7 @@ func runMigrate(db *sql.DB) {
 	}
 
 	m, err := migrate.NewWithDatabaseInstance(
-		"file:///Users/Abhishek/Developer/Go/gamezop-task/migrations",
+		"file:///Users/Abhishek/Developer/Go/golang-api/migrations",
 		"postgres", driver)
 
 	if err != nil {
